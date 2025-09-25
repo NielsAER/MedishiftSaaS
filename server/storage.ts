@@ -214,8 +214,28 @@ export class DatabaseStorage implements IStorage {
     const overtimeHours = Array.from(staffHours.values())
       .reduce((sum, hours) => sum + Math.max(0, hours - 40), 0);
 
-    // Simple conflict detection - same staff, same day, overlapping times
-    const conflicts = 0; // TODO: Implement proper conflict detection
+    // Conflict detection - same staff, same day, multiple shifts
+    let conflicts = 0;
+    
+    // Group shifts by user and date
+    const userDateShifts = new Map<string, Map<string, Shift[]>>();
+    shiftData.forEach(shift => {
+      const userMap = userDateShifts.get(shift.userId) || new Map();
+      const dateShifts = userMap.get(shift.date) || [];
+      dateShifts.push(shift);
+      userMap.set(shift.date, dateShifts);
+      userDateShifts.set(shift.userId, userMap);
+    });
+    
+    // Check for conflicts (multiple shifts same day)
+    userDateShifts.forEach(userShifts => {
+      userShifts.forEach(dayShifts => {
+        if (dayShifts.length > 1) {
+          // Multiple shifts on same day for same person
+          conflicts += dayShifts.length - 1; // Each extra shift is a conflict
+        }
+      });
+    });
 
     return {
       totalStaff: uniqueStaff.size,
