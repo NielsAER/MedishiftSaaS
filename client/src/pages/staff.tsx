@@ -187,7 +187,7 @@ export default function Staff() {
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={member.profileImageUrl || ""} />
                     <AvatarFallback className="bg-medical-blue text-white">
-                      {getInitials(member.firstName, member.lastName, member.email || undefined)}
+                      {getInitials(member.firstName || undefined, member.lastName || undefined, member.email || undefined)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">

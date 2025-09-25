@@ -172,7 +172,7 @@ export default function Sidebar({
             <Avatar className="h-8 w-8">
               <AvatarImage src={user.profileImageUrl || ""} />
               <AvatarFallback className="bg-medical-green text-white text-sm">
-                {getInitials(user.firstName, user.lastName, user.email || undefined)}
+                {getInitials(user.firstName || undefined, user.lastName || undefined, user.email || undefined)}
               </AvatarFallback>
             </Avatar>
             <div>
