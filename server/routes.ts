@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { loadUser, authorize, type AuthenticatedRequest } from "./middleware/auth";
 import { 
   insertFacilitySchema,
   insertTeamSchema,
@@ -14,13 +15,18 @@ import { z } from "zod";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+  
+  // Load user middleware for all authenticated routes
+  app.use('/api', isAuthenticated, loadUser);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      // This route now uses the loaded DB user from loadUser middleware
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      res.json(req.user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -38,7 +44,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/facilities", isAuthenticated, async (req, res) => {
+  app.post("/api/facilities", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
     try {
       const facilityData = insertFacilitySchema.parse(req.body);
       const facility = await storage.createFacility(facilityData);
@@ -61,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/teams", isAuthenticated, async (req, res) => {
+  app.post("/api/teams", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
     try {
       const teamData = insertTeamSchema.parse(req.body);
       const team = await storage.createTeam(teamData);
@@ -84,7 +90,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/shift-codes", isAuthenticated, async (req, res) => {
+  app.post("/api/shift-codes", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
     try {
       const shiftCodeData = insertShiftCodeSchema.parse(req.body);
       const shiftCode = await storage.createShiftCode(shiftCodeData);
@@ -107,11 +113,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/timesheets", isAuthenticated, async (req: any, res) => {
+  app.post("/api/timesheets", async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       const timesheetData = insertTimesheetSchema.parse({
         ...req.body,
-        createdById: req.user.claims.sub,
+        createdById: req.user.id,
       });
       const timesheet = await storage.createTimesheet(timesheetData);
       res.json(timesheet);
