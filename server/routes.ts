@@ -35,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Facility routes
-  app.get("/api/facilities", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/facilities", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -45,8 +45,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Non-admins only see their own facility
       if (req.user.role !== 'admin') {
+        // If user has no facility assigned, return empty array instead of 403
         if (!req.user.facilityId) {
-          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+          return res.json([]);
         }
         facilities = facilities.filter(f => f.id === req.user.facilityId);
       }
@@ -106,8 +107,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Non-admins only see teams from their facility
       if (req.user.role !== 'admin') {
+        // If user has no facility assigned, return empty array instead of 403
         if (!req.user.facilityId) {
-          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+          return res.json([]);
         }
         teams = teams.filter(t => t.facilityId === req.user.facilityId);
       }
@@ -179,8 +181,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Non-admins only see timesheets from their facility
       if (req.user.role !== 'admin') {
+        // If user has no facility assigned, return empty array instead of 403
         if (!req.user.facilityId) {
-          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+          return res.json([]);
         }
         const teams = await storage.getTeamsByFacility(req.user.facilityId);
         const teamIds = teams.map(t => t.id);
@@ -335,8 +338,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Non-admins only see shifts from their facility
       if (req.user.role !== 'admin') {
+        // If user has no facility assigned, return empty array instead of 403
         if (!req.user.facilityId) {
-          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+          return res.json([]);
         }
         const teams = await storage.getTeamsByFacility(req.user.facilityId);
         const teamIds = teams.map(t => t.id);
@@ -515,8 +519,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let users = await storage.getAllUsers();
       
       if (req.user.role !== 'admin') {
+        // If user has no facility assigned, return empty array instead of 403
         if (!req.user.facilityId) {
-          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+          return res.json([]);
         }
         
         // For non-admins, filter to only users in same facility

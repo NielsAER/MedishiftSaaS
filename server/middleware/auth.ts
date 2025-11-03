@@ -27,13 +27,23 @@ export async function loadUser(req: AuthenticatedRequest, res: Response, next: N
       };
       
       // Load DB user
-      const user = await storage.getUser(authUser.claims.sub);
-      if (user) {
-        req.user = user; // This is the DB user
-      } else {
-        console.error('DB user not found for authenticated user:', authUser.claims.sub);
-        return res.status(401).json({ message: 'User not found in database' });
+      let user = await storage.getUser(authUser.claims.sub);
+      
+      // If user doesn't exist, create from OIDC claims
+      if (!user) {
+        console.log('Creating new user from OIDC claims:', authUser.claims.sub);
+        user = await storage.upsertUser({
+          id: authUser.claims.sub,
+          email: authUser.claims.email,
+          firstName: authUser.claims.first_name,
+          lastName: authUser.claims.last_name,
+          profileImageUrl: authUser.claims.profile_image_url,
+          // role defaults to 'staff' in schema
+          // facilityId defaults to null
+        });
       }
+      
+      req.user = user; // This is the DB user
     } catch (error) {
       console.error('Error loading user:', error);
       return res.status(500).json({ message: 'Failed to load user' });
