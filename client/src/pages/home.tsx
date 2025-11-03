@@ -6,7 +6,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { Facility } from "@shared/schema";
+import type { Facility, Team, User } from "@shared/schema";
 
 export default function Home() {
   const { user, isLoading } = useAuth();
@@ -15,6 +15,16 @@ export default function Home() {
   const { data: facilities, error } = useQuery<Facility[]>({
     queryKey: ["/api/facilities"],
     enabled: !!user,
+  });
+
+  const { data: allUsers } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+    enabled: !!user && user.role === 'admin',
+  });
+
+  const { data: allTeams } = useQuery<Team[]>({
+    queryKey: ["/api/all-teams"],
+    enabled: !!user && user.role === 'admin',
   });
 
   useEffect(() => {
@@ -145,11 +155,15 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground">Facilities</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">-</div>
+                  <div className="text-2xl font-bold text-foreground" data-testid="stat-active-teams">
+                    {allTeams?.length || 0}
+                  </div>
                   <div className="text-sm text-muted-foreground">Active Teams</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">-</div>
+                  <div className="text-2xl font-bold text-foreground" data-testid="stat-staff-members">
+                    {allUsers?.filter(u => u.role === 'staff').length || 0}
+                  </div>
                   <div className="text-sm text-muted-foreground">Staff Members</div>
                 </div>
               </div>

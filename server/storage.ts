@@ -25,6 +25,10 @@ export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<UpsertUser>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+  getAllUsers(): Promise<User[]>;
+  getUsersByFacility(facilityId: string): Promise<User[]>;
   
   // Facility operations
   getFacilities(): Promise<Facility[]>;
@@ -32,6 +36,7 @@ export interface IStorage {
   
   // Team operations
   getTeamsByFacility(facilityId: string): Promise<Team[]>;
+  getAllTeams(): Promise<Team[]>;
   createTeam(team: InsertTeam): Promise<Team>;
   
   // Shift code operations
@@ -58,6 +63,9 @@ export interface IStorage {
     overtimeHours: number;
     conflicts: number;
   }>;
+  
+  // Bulk operations
+  copyWeekShifts(sourceTimesheetId: string, targetTimesheetId: string, dayOffset: number): Promise<Shift[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -82,6 +90,34 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async updateUser(id: string, userData: Partial<UpsertUser>): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        ...userData,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(users.firstName);
+  }
+
+  async getUsersByFacility(facilityId: string): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(eq(users.facilityId, facilityId))
+      .orderBy(users.firstName);
+  }
+
   // Facility operations
   async getFacilities(): Promise<Facility[]> {
     return await db.select().from(facilities).orderBy(facilities.name);
@@ -99,6 +135,10 @@ export class DatabaseStorage implements IStorage {
       .from(teams)
       .where(eq(teams.facilityId, facilityId))
       .orderBy(teams.name);
+  }
+
+  async getAllTeams(): Promise<Team[]> {
+    return await db.select().from(teams).orderBy(teams.name);
   }
 
   async createTeam(team: InsertTeam): Promise<Team> {
@@ -243,6 +283,38 @@ export class DatabaseStorage implements IStorage {
       overtimeHours,
       conflicts,
     };
+  }
+
+  // Bulk operations
+  async copyWeekShifts(sourceTimesheetId: string, targetTimesheetId: string, dayOffset: number): Promise<Shift[]> {
+    // Get all shifts from source timesheet
+    const sourceShifts = await this.getShiftsByTimesheet(sourceTimesheetId);
+    
+    if (sourceShifts.length === 0) {
+      return [];
+    }
+
+    // Create new shifts for target timesheet with offset dates
+    const newShifts = sourceShifts.map(shift => {
+      const sourceDate = new Date(shift.date);
+      const targetDate = new Date(sourceDate);
+      targetDate.setDate(targetDate.getDate() + dayOffset);
+      
+      return {
+        timesheetId: targetTimesheetId,
+        userId: shift.userId,
+        shiftCodeId: shift.shiftCodeId,
+        date: targetDate.toISOString().split('T')[0],
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        hours: shift.hours,
+        notes: shift.notes,
+      };
+    });
+
+    // Insert all new shifts
+    const createdShifts = await db.insert(shifts).values(newShifts).returning();
+    return createdShifts;
   }
 }
 

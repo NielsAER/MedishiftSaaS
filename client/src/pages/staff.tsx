@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import StaffModal from "@/components/staff-modal";
 import type { Facility, Team, User } from "@shared/schema";
 
 export default function Staff() {
@@ -15,6 +17,8 @@ export default function Staff() {
   const { toast } = useToast();
   const [selectedFacility, setSelectedFacility] = useState<string>("");
   const [selectedTeam, setSelectedTeam] = useState<string>("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<User | undefined>(undefined);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -111,6 +115,44 @@ export default function Staff() {
     }
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiRequest("DELETE", `/api/users/${userId}`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Staff Removed",
+        description: "Staff member has been removed successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/staff"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove staff member",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddStaff = () => {
+    setEditingStaff(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleEditStaff = (staffMember: User) => {
+    setEditingStaff(staffMember);
+    setIsModalOpen(true);
+  };
+
+  const handleRemoveStaff = (userId: string) => {
+    if (confirm("Are you sure you want to remove this staff member?")) {
+      deleteMutation.mutate(userId);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -149,7 +191,7 @@ export default function Staff() {
             </Select>
 
             {user.role === 'admin' && (
-              <Button data-testid="button-add-staff">
+              <Button data-testid="button-add-staff" onClick={handleAddStaff}>
                 <i className="fas fa-plus mr-2"></i>
                 Add Staff
               </Button>
@@ -214,11 +256,24 @@ export default function Staff() {
 
                 {user.role === 'admin' && (
                   <div className="mt-4 flex space-x-2">
-                    <Button variant="outline" size="sm" className="flex-1" data-testid={`button-edit-${member.id}`}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1" 
+                      data-testid={`button-edit-${member.id}`}
+                      onClick={() => handleEditStaff(member)}
+                    >
                       <i className="fas fa-edit mr-1"></i>
                       Edit
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1" data-testid={`button-remove-${member.id}`}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1" 
+                      data-testid={`button-remove-${member.id}`}
+                      onClick={() => handleRemoveStaff(member.id)}
+                      disabled={deleteMutation.isPending}
+                    >
                       <i className="fas fa-user-minus mr-1"></i>
                       Remove
                     </Button>
@@ -244,6 +299,14 @@ export default function Staff() {
           )}
         </div>
       </div>
+
+      <StaffModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        staff={editingStaff}
+        facilities={facilities}
+        selectedFacility={selectedFacility}
+      />
     </div>
   );
 }
