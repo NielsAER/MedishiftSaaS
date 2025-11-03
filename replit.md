@@ -38,6 +38,9 @@ Preferred communication style: Simple, everyday language.
 - **Session Storage**: PostgreSQL-backed sessions with configurable TTL
 - **Role-based Access**: Admin, Manager, and Staff roles with appropriate permissions
 - **Security**: HTTPS enforcement, secure session cookies, and CSRF protection
+- **User Flow**: OIDC authentication creates user in database on first login; all authorization checks use database user (not OIDC claims)
+- **Facility Scoping**: Non-admin users (managers/staff) MUST have facilityId assigned; hard 403 failures for missing facilityId or cross-facility access
+- **Security Model**: Zero cross-facility data leakage with comprehensive facility-based authorization on all API endpoints
 
 ### Data Architecture
 - **User Management**: Hierarchical structure with facilities containing teams and staff members
