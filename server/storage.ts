@@ -45,12 +45,16 @@ export interface IStorage {
   updateShiftCode(id: string, shiftCode: Partial<InsertShiftCode>): Promise<ShiftCode>;
   
   // Timesheet operations
+  getAllTimesheets(): Promise<Timesheet[]>;
+  getTimesheetById(id: string): Promise<Timesheet | undefined>;
   getTimesheetByWeekAndTeam(weekStartDate: string, teamId: string): Promise<Timesheet | undefined>;
   createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet>;
   getTimesheetsByFacility(facilityId: string): Promise<Timesheet[]>;
   
   // Shift operations
   getShiftsByTimesheet(timesheetId: string): Promise<Shift[]>;
+  getAllShifts(): Promise<Shift[]>;
+  getShiftById(id: string): Promise<Shift | undefined>;
   createShift(shift: InsertShift): Promise<Shift>;
   updateShift(id: string, shift: Partial<InsertShift>): Promise<Shift>;
   deleteShift(id: string): Promise<void>;
@@ -183,6 +187,15 @@ export class DatabaseStorage implements IStorage {
     return newTimesheet;
   }
 
+  async getAllTimesheets(): Promise<Timesheet[]> {
+    return await db.select().from(timesheets).orderBy(desc(timesheets.weekStartDate));
+  }
+
+  async getTimesheetById(id: string): Promise<Timesheet | undefined> {
+    const [timesheet] = await db.select().from(timesheets).where(eq(timesheets.id, id));
+    return timesheet;
+  }
+
   async getTimesheetsByFacility(facilityId: string): Promise<Timesheet[]> {
     return await db
       .select()
@@ -198,6 +211,15 @@ export class DatabaseStorage implements IStorage {
       .from(shifts)
       .where(eq(shifts.timesheetId, timesheetId))
       .orderBy(shifts.date);
+  }
+
+  async getAllShifts(): Promise<Shift[]> {
+    return await db.select().from(shifts).orderBy(shifts.date);
+  }
+
+  async getShiftById(id: string): Promise<Shift | undefined> {
+    const [shift] = await db.select().from(shifts).where(eq(shifts.id, id));
+    return shift;
   }
 
   async createShift(shift: InsertShift): Promise<Shift> {

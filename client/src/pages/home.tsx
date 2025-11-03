@@ -91,7 +91,23 @@ export default function Home() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Link href="/dashboard">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mb-3">
+                  <i className="fas fa-chart-line text-amber-600 text-xl"></i>
+                </div>
+                <CardTitle className="text-lg">Dashboard</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  Facility-wide overview and scheduling analytics
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
           <Link href="/timesheets">
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">

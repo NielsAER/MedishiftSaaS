@@ -35,9 +35,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Facility routes
-  app.get("/api/facilities", isAuthenticated, async (req, res) => {
+  app.get("/api/facilities", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const facilities = await storage.getFacilities();
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      let facilities = await storage.getFacilities();
+      
+      // Non-admins only see their own facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        facilities = facilities.filter(f => f.id === req.user.facilityId);
+      }
+      
       res.json(facilities);
     } catch (error) {
       console.error("Error fetching facilities:", error);
@@ -57,9 +70,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Team routes
-  app.get("/api/teams/:facilityId", isAuthenticated, async (req, res) => {
+  app.get("/api/teams/:facilityId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { facilityId } = req.params;
+      
+      // Non-admins can only access their own facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        if (req.user.facilityId !== facilityId) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this facility" });
+        }
+      }
+      
       const teams = await storage.getTeamsByFacility(facilityId);
       res.json(teams);
     } catch (error) {
@@ -68,9 +96,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/all-teams", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.get("/api/all-teams", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const teams = await storage.getAllTeams();
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      let teams = await storage.getAllTeams();
+      
+      // Non-admins only see teams from their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        teams = teams.filter(t => t.facilityId === req.user.facilityId);
+      }
+      
       res.json(teams);
     } catch (error) {
       console.error("Error fetching teams:", error);
@@ -90,9 +131,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Shift code routes
-  app.get("/api/shift-codes/:facilityId", isAuthenticated, async (req, res) => {
+  app.get("/api/shift-codes/:facilityId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { facilityId } = req.params;
+      
+      // Non-admins can only access their own facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        if (req.user.facilityId !== facilityId) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this facility" });
+        }
+      }
+      
       const shiftCodes = await storage.getShiftCodesByFacility(facilityId);
       res.json(shiftCodes);
     } catch (error) {
@@ -113,9 +169,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Timesheet routes
-  app.get("/api/timesheets/:weekStartDate/:teamId", isAuthenticated, async (req, res) => {
+  app.get("/api/timesheets", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      let timesheets = await storage.getAllTimesheets();
+      
+      // Non-admins only see timesheets from their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        timesheets = timesheets.filter(ts => teamIds.includes(ts.teamId));
+      }
+      
+      res.json(timesheets);
+    } catch (error) {
+      console.error("Error fetching timesheets:", error);
+      res.status(500).json({ message: "Failed to fetch timesheets" });
+    }
+  });
+
+  app.get("/api/timesheets/:weekStartDate/:teamId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { weekStartDate, teamId } = req.params;
+      
+      // Non-admins can only access timesheets from their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        // Verify the team belongs to user's facility
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(teamId)) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this team" });
+        }
+      }
+      
       const timesheet = await storage.getTimesheetByWeekAndTeam(weekStartDate, teamId);
       res.json(timesheet);
     } catch (error) {
@@ -129,10 +230,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
+      
       const timesheetData = insertTimesheetSchema.parse({
         ...req.body,
         createdById: req.user.id,
       });
+      
+      // Non-admins can only create timesheets in their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        if (timesheetData.facilityId !== req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: Can only create timesheets in your facility" });
+        }
+        
+        // Verify the team belongs to user's facility
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(timesheetData.teamId)) {
+          return res.status(403).json({ message: "Forbidden: Cannot create timesheets for teams in other facilities" });
+        }
+      }
+      
       const timesheet = await storage.createTimesheet(timesheetData);
       res.json(timesheet);
     } catch (error) {
@@ -141,9 +262,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/timesheets/facility/:facilityId", isAuthenticated, async (req, res) => {
+  app.get("/api/timesheets/facility/:facilityId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { facilityId } = req.params;
+      
+      // Non-admins can only access their own facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        if (req.user.facilityId !== facilityId) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this facility" });
+        }
+      }
+      
       const timesheets = await storage.getTimesheetsByFacility(facilityId);
       res.json(timesheets);
     } catch (error) {
@@ -153,9 +289,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Shift routes
-  app.get("/api/shifts/:timesheetId", isAuthenticated, async (req, res) => {
+  app.get("/api/shifts/:timesheetId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { timesheetId } = req.params;
+      
+      // Verify user has access to this timesheet
+      const timesheet = await storage.getTimesheetById(timesheetId);
+      if (!timesheet) {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      
+      // Non-admins can only access timesheets from their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(timesheet.teamId)) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this timesheet" });
+        }
+      }
+      
       const shifts = await storage.getShiftsByTimesheet(timesheetId);
       res.json(shifts);
     } catch (error) {
@@ -164,9 +325,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/shifts", isAuthenticated, async (req, res) => {
+  app.get("/api/shifts", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      let shifts = await storage.getAllShifts();
+      
+      // Non-admins only see shifts from their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        const allTimesheets = await storage.getAllTimesheets();
+        const relevantTimesheets = allTimesheets.filter(ts => teamIds.includes(ts.teamId));
+        const timesheetIds = relevantTimesheets.map(ts => ts.id);
+        shifts = shifts.filter(s => timesheetIds.includes(s.timesheetId));
+      }
+      
+      res.json(shifts);
+    } catch (error) {
+      console.error("Error fetching shifts:", error);
+      res.status(500).json({ message: "Failed to fetch shifts" });
+    }
+  });
+
+  app.post("/api/shifts", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const shiftData = insertShiftSchema.parse(req.body);
+      
+      // Verify user has access to the timesheet being modified
+      const timesheet = await storage.getTimesheetById(shiftData.timesheetId);
+      if (!timesheet) {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      
+      // Non-admins can only create shifts in their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(timesheet.teamId)) {
+          return res.status(403).json({ message: "Forbidden: Cannot create shifts in other facilities" });
+        }
+      }
+      
       const shift = await storage.createShift(shiftData);
       res.json(shift);
     } catch (error) {
@@ -175,9 +389,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/shifts/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/shifts/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { id } = req.params;
+      
+      // Verify shift exists and user has access
+      const existingShift = await storage.getShiftById(id);
+      if (!existingShift) {
+        return res.status(404).json({ message: "Shift not found" });
+      }
+      
+      const timesheet = await storage.getTimesheetById(existingShift.timesheetId);
+      if (!timesheet) {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      
+      // Non-admins can only update shifts in their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(timesheet.teamId)) {
+          return res.status(403).json({ message: "Forbidden: Cannot update shifts in other facilities" });
+        }
+      }
+      
       const shiftData = insertShiftSchema.partial().parse(req.body);
       const shift = await storage.updateShift(id, shiftData);
       res.json(shift);
@@ -187,9 +431,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/shifts/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/shifts/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { id } = req.params;
+      
+      // Verify shift exists and user has access
+      const existingShift = await storage.getShiftById(id);
+      if (!existingShift) {
+        return res.status(404).json({ message: "Shift not found" });
+      }
+      
+      const timesheet = await storage.getTimesheetById(existingShift.timesheetId);
+      if (!timesheet) {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      
+      // Non-admins can only delete shifts in their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(timesheet.teamId)) {
+          return res.status(403).json({ message: "Forbidden: Cannot delete shifts in other facilities" });
+        }
+      }
+      
       await storage.deleteShift(id);
       res.json({ success: true });
     } catch (error) {
@@ -199,9 +473,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Staff routes
-  app.get("/api/staff/:teamId", isAuthenticated, async (req, res) => {
+  app.get("/api/staff/:teamId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { teamId } = req.params;
+      
+      // Non-admins can only access teams from their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        // Verify the team belongs to user's facility
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(teamId)) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this team" });
+        }
+      }
+      
       const staff = await storage.getStaffByTeam(teamId);
       res.json(staff);
     } catch (error) {
@@ -210,10 +504,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User management routes (admin only)
-  app.get("/api/users", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  // User management routes
+  app.get("/api/users", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const users = await storage.getAllUsers();
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Admins see all users, managers/staff see users in their facility
+      let users = await storage.getAllUsers();
+      
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        // For non-admins, filter to only users in same facility
+        const facilities = await storage.getFacilities();
+        const userFacility = facilities.find(f => f.id === req.user.facilityId);
+        
+        if (userFacility) {
+          // Get teams in user's facility
+          const teams = await storage.getTeamsByFacility(userFacility.id);
+          const teamIds = teams.map(t => t.id);
+          
+          // Get timesheets for those teams to find which users work there
+          const allTimesheets = await storage.getAllTimesheets();
+          const relevantTimesheets = allTimesheets.filter(ts => teamIds.includes(ts.teamId));
+          const userIds = new Set(relevantTimesheets.map(ts => ts.userId));
+          
+          users = users.filter(u => userIds.has(u.id) || u.id === req.user.id);
+        }
+      }
+      
       res.json(users);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -267,9 +590,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stats routes
-  app.get("/api/stats/:timesheetId", isAuthenticated, async (req, res) => {
+  app.get("/api/stats/:timesheetId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const { timesheetId } = req.params;
+      
+      // Verify user has access to this timesheet
+      const timesheet = await storage.getTimesheetById(timesheetId);
+      if (!timesheet) {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      
+      // Non-admins can only access timesheets from their facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(timesheet.teamId)) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this timesheet" });
+        }
+      }
+      
       const stats = await storage.getTimesheetStats(timesheetId);
       res.json(stats);
     } catch (error) {
@@ -289,6 +637,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!sourceWeekStartDate || !targetWeekStartDate || !teamId || !facilityId) {
         return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Non-admins can only copy within their own facility
+      if (req.user.role !== 'admin') {
+        if (!req.user.facilityId) {
+          return res.status(403).json({ message: "Forbidden: No facility assigned" });
+        }
+        if (req.user.facilityId !== facilityId) {
+          return res.status(403).json({ message: "Forbidden: Can only copy within your facility" });
+        }
+        
+        // Verify the team belongs to user's facility
+        const teams = await storage.getTeamsByFacility(req.user.facilityId);
+        const teamIds = teams.map(t => t.id);
+        
+        if (!teamIds.includes(teamId)) {
+          return res.status(403).json({ message: "Forbidden: Access denied to this team" });
+        }
       }
 
       // Get or create source timesheet

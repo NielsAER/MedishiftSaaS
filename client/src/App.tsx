@@ -10,6 +10,7 @@ import Home from "@/pages/home";
 import Timesheets from "@/pages/timesheets";
 import Codes from "@/pages/codes";
 import Staff from "@/pages/staff";
+import Dashboard from "@/pages/dashboard";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -21,6 +22,7 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Home} />
+          <Route path="/dashboard" component={Dashboard} />
           <Route path="/timesheets" component={Timesheets} />
           <Route path="/codes" component={Codes} />
           <Route path="/staff" component={Staff} />
