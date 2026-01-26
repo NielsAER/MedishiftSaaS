@@ -92,7 +92,7 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Link href="/dashboard">
+          <Link href="/dashboard" data-testid="link-dashboard">
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mb-3">
@@ -108,7 +108,7 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/timesheets">
+          <Link href="/timesheets" data-testid="link-timesheets">
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="w-12 h-12 bg-medical-blue/10 rounded-lg flex items-center justify-center mb-3">
@@ -124,7 +124,7 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/codes">
+          <Link href="/codes" data-testid="link-shift-codes">
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="w-12 h-12 bg-medical-green/10 rounded-lg flex items-center justify-center mb-3">
@@ -140,7 +140,7 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/staff">
+          <Link href="/staff" data-testid="link-staff">
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-3">

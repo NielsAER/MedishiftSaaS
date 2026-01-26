@@ -71,7 +71,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Team routes
-  app.get("/api/teams/:facilityId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/teams/:facilityId", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -97,7 +97,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/all-teams", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/all-teams", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -133,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Shift code routes
-  app.get("/api/shift-codes/:facilityId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/shift-codes/:facilityId", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -161,7 +161,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/shift-codes", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
     try {
-      const shiftCodeData = insertShiftCodeSchema.parse(req.body);
+      // Convert empty strings to null for time fields
+      const body = { ...req.body };
+      if (body.startTime === '' || body.startTime === '--:-- --') body.startTime = null;
+      if (body.endTime === '' || body.endTime === '--:-- --') body.endTime = null;
+      
+      const shiftCodeData = insertShiftCodeSchema.parse(body);
       const shiftCode = await storage.createShiftCode(shiftCodeData);
       res.json(shiftCode);
     } catch (error) {
@@ -171,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Timesheet routes
-  app.get("/api/timesheets", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/timesheets", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -197,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/timesheets/:weekStartDate/:teamId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/timesheets/:weekStartDate/:teamId", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -265,7 +270,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/timesheets/facility/:facilityId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/timesheets/facility/:facilityId", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -292,7 +297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Shift routes
-  app.get("/api/shifts/:timesheetId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/shifts/:timesheetId", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -328,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/shifts", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/shifts", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -357,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/shifts", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/shifts", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -393,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/shifts/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/shifts/:id", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -435,7 +440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/shifts/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.delete("/api/shifts/:id", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -477,7 +482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Staff routes
-  app.get("/api/staff/:teamId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/staff/:teamId", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -509,7 +514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User management routes
-  app.get("/api/users", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/users", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -595,7 +600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stats routes
-  app.get("/api/stats/:timesheetId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/stats/:timesheetId", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -632,7 +637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk operations
-  app.post("/api/timesheets/copy-week", isAuthenticated, loadUser, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/timesheets/copy-week", async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
