@@ -165,17 +165,20 @@ export default function Codes() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Shift Codes</h1>
-            <p className="text-muted-foreground mt-2">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        {/* Header Section - Responsive */}
+        <div className="mb-6 sm:mb-8">
+          <div className="mb-4 sm:mb-6">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Shift Codes</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
               Manage shift codes for your healthcare facility
             </p>
           </div>
-          <div className="flex items-center space-x-4">
+          
+          {/* Controls - Stack on mobile, row on desktop */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <Select value={selectedFacility} onValueChange={setSelectedFacility}>
-              <SelectTrigger className="w-64" data-testid="select-facility">
+              <SelectTrigger className="w-full sm:w-64" data-testid="select-facility">
                 <SelectValue placeholder="Select facility" />
               </SelectTrigger>
               <SelectContent>
@@ -189,25 +192,33 @@ export default function Codes() {
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button data-testid="button-add-shift-code">
+                <Button 
+                  data-testid="button-add-shift-code"
+                  className="w-full sm:w-auto"
+                >
                   <i className="fas fa-plus mr-2"></i>
                   Add Shift Code
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
+              <DialogContent className="w-[95vw] max-w-[425px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Create New Shift Code</DialogTitle>
+                  <DialogTitle className="text-lg sm:text-xl">Create New Shift Code</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
                     <FormField
                       control={form.control}
                       name="code"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Code</FormLabel>
+                          <FormLabel className="text-sm">Code</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g., M22, N11" {...field} data-testid="input-code" />
+                            <Input 
+                              placeholder="e.g., M22, N11" 
+                              {...field} 
+                              data-testid="input-code"
+                              className="text-sm sm:text-base"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -219,9 +230,14 @@ export default function Codes() {
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Name</FormLabel>
+                          <FormLabel className="text-sm">Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g., Morning Shift" {...field} data-testid="input-name" />
+                            <Input 
+                              placeholder="e.g., Morning Shift" 
+                              {...field} 
+                              data-testid="input-name"
+                              className="text-sm sm:text-base"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -233,10 +249,10 @@ export default function Codes() {
                       name="category"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Category</FormLabel>
+                          <FormLabel className="text-sm">Category</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger data-testid="select-category">
+                              <SelectTrigger data-testid="select-category" className="text-sm sm:text-base">
                                 <SelectValue placeholder="Select category" />
                               </SelectTrigger>
                             </FormControl>
@@ -253,15 +269,20 @@ export default function Codes() {
                       )}
                     />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="startTime"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Start Time</FormLabel>
+                            <FormLabel className="text-sm">Start Time</FormLabel>
                             <FormControl>
-                              <Input type="time" {...field} data-testid="input-start-time" />
+                              <Input 
+                                type="time" 
+                                {...field} 
+                                data-testid="input-start-time"
+                                className="text-sm sm:text-base"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -273,9 +294,14 @@ export default function Codes() {
                         name="endTime"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>End Time</FormLabel>
+                            <FormLabel className="text-sm">End Time</FormLabel>
                             <FormControl>
-                              <Input type="time" {...field} data-testid="input-end-time" />
+                              <Input 
+                                type="time" 
+                                {...field} 
+                                data-testid="input-end-time"
+                                className="text-sm sm:text-base"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -288,13 +314,14 @@ export default function Codes() {
                       name="description"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Description</FormLabel>
+                          <FormLabel className="text-sm">Description</FormLabel>
                           <FormControl>
                             <Textarea 
                               placeholder="Optional description" 
                               {...field}
                               value={field.value || ""}
                               data-testid="textarea-description"
+                              className="text-sm sm:text-base min-h-[80px]"
                             />
                           </FormControl>
                           <FormMessage />
@@ -302,12 +329,13 @@ export default function Codes() {
                       )}
                     />
 
-                    <div className="flex justify-end space-x-2">
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:space-x-2 pt-2">
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => setDialogOpen(false)}
                         data-testid="button-cancel"
+                        className="w-full sm:w-auto"
                       >
                         Cancel
                       </Button>
@@ -315,6 +343,7 @@ export default function Codes() {
                         type="submit" 
                         disabled={createShiftCodeMutation.isPending}
                         data-testid="button-create"
+                        className="w-full sm:w-auto"
                       >
                         {createShiftCodeMutation.isPending ? "Creating..." : "Create"}
                       </Button>
@@ -326,37 +355,39 @@ export default function Codes() {
           </div>
         </div>
 
-        {/* Shift Codes Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Shift Codes Grid - Single column on mobile, responsive grid on larger screens */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {shiftCodes?.map((shiftCode) => (
             <Card key={shiftCode.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2 sm:pb-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
                     <div 
-                      className="w-4 h-4 rounded border-l-4"
+                      className="w-3 h-3 sm:w-4 sm:h-4 rounded border-l-4 flex-shrink-0"
                       style={{ 
                         backgroundColor: shiftCode.color,
                         borderLeftColor: shiftCode.borderColor,
                       }}
                     ></div>
-                    <CardTitle className="text-lg">{shiftCode.code}</CardTitle>
+                    <CardTitle className="text-base sm:text-lg truncate">{shiftCode.code}</CardTitle>
                   </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${getCategoryColor(shiftCode.category)}`}>
+                  <span className={`px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-full whitespace-nowrap ml-2 ${getCategoryColor(shiftCode.category)}`}>
                     {shiftCode.category.replace('_', ' ')}
                   </span>
                 </div>
               </CardHeader>
-              <CardContent>
-                <h3 className="font-medium text-foreground mb-2">{shiftCode.name}</h3>
+              <CardContent className="space-y-2">
+                <h3 className="font-medium text-foreground text-sm sm:text-base">{shiftCode.name}</h3>
                 {shiftCode.description && (
-                  <p className="text-muted-foreground text-sm mb-3">{shiftCode.description}</p>
+                  <p className="text-muted-foreground text-xs sm:text-sm line-clamp-2">{shiftCode.description}</p>
                 )}
                 {shiftCode.startTime && shiftCode.endTime && (
-                  <div className="text-sm text-muted-foreground">
-                    <i className="fas fa-clock mr-1"></i>
-                    {shiftCode.startTime} - {shiftCode.endTime}
-                    {shiftCode.hours && ` (${shiftCode.hours}h)`}
+                  <div className="text-xs sm:text-sm text-muted-foreground flex items-center">
+                    <i className="fas fa-clock mr-1 flex-shrink-0"></i>
+                    <span className="truncate">
+                      {shiftCode.startTime} - {shiftCode.endTime}
+                      {shiftCode.hours && ` (${shiftCode.hours}h)`}
+                    </span>
                   </div>
                 )}
               </CardContent>
@@ -364,12 +395,12 @@ export default function Codes() {
           ))}
 
           {(!shiftCodes || shiftCodes.length === 0) && (
-            <div className="col-span-full text-center py-12">
-              <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-code text-muted-foreground text-2xl"></i>
+            <div className="col-span-full text-center py-8 sm:py-12 px-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-lg flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <i className="fas fa-code text-muted-foreground text-xl sm:text-2xl"></i>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">No shift codes yet</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-base sm:text-lg font-medium text-foreground mb-1 sm:mb-2">No shift codes yet</h3>
+              <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto">
                 Create your first shift code to get started with timesheet management.
               </p>
             </div>

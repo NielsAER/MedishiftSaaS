@@ -1,10 +1,16 @@
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation } from "wouter";
-import { format } from "date-fns";
+import { format, startOfISOWeek, parseISO } from "date-fns";
 import type { User, Facility, Team } from "@shared/schema";
 
 interface SidebarProps {
@@ -36,7 +42,11 @@ export default function Sidebar({
 }: SidebarProps) {
   const [location] = useLocation();
 
-  const getInitials = (firstName?: string, lastName?: string, email?: string) => {
+  const getInitials = (
+    firstName?: string,
+    lastName?: string,
+    email?: string,
+  ) => {
     if (firstName && lastName) {
       return `${firstName[0]}${lastName[0]}`.toUpperCase();
     }
@@ -54,22 +64,28 @@ export default function Sidebar({
   ];
 
   return (
-    <div className={`${collapsed ? 'w-16' : 'w-80'} bg-white border-r border-border transition-all duration-300 flex flex-col`}>
+    <div
+      className={`${collapsed ? "w-16" : "w-80"} bg-white border-r border-border transition-all duration-300 flex flex-col`}
+    >
       {/* Sidebar Header */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center justify-between">
-          <div className={`flex items-center space-x-3 ${collapsed ? 'justify-center' : ''}`}>
+          <div
+            className={`flex items-center space-x-3 ${collapsed ? "justify-center" : ""}`}
+          >
             <div className="w-8 h-8 bg-medical-blue rounded-lg flex items-center justify-center">
               <i className="fas fa-hospital-symbol text-white text-sm"></i>
             </div>
             {!collapsed && (
               <div>
                 <h1 className="text-xl font-bold text-foreground">Medishift</h1>
-                <p className="text-xs text-muted-foreground">Timesheets. Simplified.</p>
+                <p className="text-xs text-muted-foreground">
+                  Timesheets. Simplified.
+                </p>
               </div>
             )}
           </div>
-          <button 
+          <button
             onClick={onToggle}
             className="text-muted-foreground hover:text-foreground"
             data-testid="button-sidebar-toggle"
@@ -84,13 +100,13 @@ export default function Sidebar({
         <div className="space-y-2">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href}>
-              <a 
+              <a
                 className={`flex items-center space-x-3 px-3 py-2 rounded-md transition-colors ${
-                  location === item.href 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                } ${collapsed ? 'justify-center' : ''}`}
-                data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
+                  location === item.href
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                } ${collapsed ? "justify-center" : ""}`}
+                data-testid={`nav-${item.label.toLowerCase().replace(" ", "-")}`}
               >
                 <i className={`${item.icon} w-5`}></i>
                 {!collapsed && <span>{item.label}</span>}
@@ -111,8 +127,14 @@ export default function Sidebar({
                 <Label className="text-sm font-medium text-foreground block mb-2">
                   Facility
                 </Label>
-                <Select value={selectedFacility} onValueChange={onFacilityChange}>
-                  <SelectTrigger className="w-full" data-testid="select-facility">
+                <Select
+                  value={selectedFacility}
+                  onValueChange={onFacilityChange}
+                >
+                  <SelectTrigger
+                    className="w-full"
+                    data-testid="select-facility"
+                  >
                     <SelectValue placeholder="Select facility" />
                   </SelectTrigger>
                   <SelectContent>
@@ -153,8 +175,16 @@ export default function Sidebar({
                   type="week"
                   value={format(currentWeek, "yyyy-'W'II")}
                   onChange={(e) => {
-                    const newDate = new Date(e.target.value);
-                    onWeekChange(newDate);
+                    const value = e.target.value; // "2025-W06"
+                    if (!value) return;
+
+                    // Convert "2025-W06" → "2025-W06-1" (Monday)
+                    const isoWeekDate = `${value}-1`;
+
+                    const parsed = parseISO(isoWeekDate);
+                    if (!isNaN(parsed.getTime())) {
+                      onWeekChange(startOfISOWeek(parsed));
+                    }
                   }}
                   className="w-full"
                   data-testid="input-week"
@@ -172,16 +202,22 @@ export default function Sidebar({
             <Avatar className="h-8 w-8">
               <AvatarImage src={user.profileImageUrl || ""} />
               <AvatarFallback className="bg-medical-green text-white text-sm">
-                {getInitials(user.firstName || undefined, user.lastName || undefined, user.email || undefined)}
+                {getInitials(
+                  user.firstName || undefined,
+                  user.lastName || undefined,
+                  user.email || undefined,
+                )}
               </AvatarFallback>
             </Avatar>
             <div>
               <p className="text-sm font-medium text-foreground">
-                {user.firstName && user.lastName 
+                {user.firstName && user.lastName
                   ? `${user.firstName} ${user.lastName}`
                   : user.email}
               </p>
-              <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+              <p className="text-xs text-muted-foreground capitalize">
+                {user.role}
+              </p>
             </div>
           </div>
         </div>

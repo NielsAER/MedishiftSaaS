@@ -35,6 +35,12 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role", { enum: ["admin", "manager", "staff"] }).notNull().default("staff"),
   facilityId: varchar("facility_id"),
+  
+  // Shift configuration fields (optional)
+  shiftPercentage: integer("shift_percentage"), // e.g., 50, 80, 100
+  shiftPattern: varchar("shift_pattern", { enum: ["odd", "even"] }), // odd days, even days, or NULL
+  shiftType: varchar("shift_type", { enum: ["morning", "evening", "night"] }), // preferred shift type
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
