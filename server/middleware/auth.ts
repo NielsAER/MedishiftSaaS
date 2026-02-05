@@ -5,6 +5,7 @@ import type { User } from '@shared/schema';
 export interface AuthenticatedRequest extends Request {
   user?: User;  // DB user only, never claims
   auth?: {      // OIDC claims only
+    token: string;
     claims: any;
     access_token?: string;
     refresh_token?: string;
@@ -14,36 +15,39 @@ export interface AuthenticatedRequest extends Request {
 
 // Middleware to load current user from database
 export async function loadUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  // Check if request has auth from isAuthenticated middleware
-  const authUser = (req as any).user; // This is the OIDC user from passport
-  if (authUser?.claims?.sub) {
+  // Check for session-based auth (set by Neon auth handlers)
+  const suser = (req.session as any)?.user;
+  if (suser?.claims?.sub) {
     try {
-      // Store OIDC claims separately
+      // Attach OIDC/Neon claims and tokens to req.auth
       req.auth = {
-        claims: authUser.claims,
-        access_token: authUser.access_token,
-        refresh_token: authUser.refresh_token,
-        expires_at: authUser.expires_at,
+        token: suser.access_token || '',
+        claims: suser.claims,
+        access_token: suser.access_token,
+        refresh_token: suser.refresh_token,
+        expires_at: suser.expires_at,
       };
-      
-      // Load DB user
-      let user = await storage.getUser(authUser.claims.sub);
-      
-      // If user doesn't exist, create from OIDC claims
+
+      // Load DB user by subject (sub)
+      let user = await storage.getUser(suser.claims.sub);
+
+      // If user doesn't exist, create from claims
       if (!user) {
-        console.log('Creating new user from OIDC claims:', authUser.claims.sub);
-        user = await storage.upsertUser({
-          id: authUser.claims.sub,
-          email: authUser.claims.email,
-          firstName: authUser.claims.first_name,
-          lastName: authUser.claims.last_name,
-          profileImageUrl: authUser.claims.profile_image_url,
-          // role defaults to 'staff' in schema
-          // facilityId defaults to null
+        console.log('Creating new user from Neon claims:', suser.claims.sub);
+        await storage.upsertUser({
+          id: suser.claims.sub,
+          email: suser.claims.email,
+          firstName: suser.claims.first_name,
+          lastName: suser.claims.last_name,
+          profileImageUrl: suser.claims.profile_image_url,
+          role: suser.claims.role,
+          facilityId: suser.claims.facilityId ?? null,
+          neonAuthId: suser.claims.sub,
         });
+        user = await storage.getUser(suser.claims.sub);
       }
-      
-      req.user = user; // This is the DB user
+
+      req.user = user; // Attach DB user to request
     } catch (error) {
       console.error('Error loading user:', error);
       return res.status(500).json({ message: 'Failed to load user' });

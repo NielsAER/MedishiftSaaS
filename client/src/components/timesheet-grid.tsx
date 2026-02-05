@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format, addDays, eachDayOfInterval, endOfWeek } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ShiftModal from "@/components/shift-modal";
+import { stripSeconds } from "@/lib/timeUtils";
 import type { User, ShiftCode, Timesheet, Shift } from "@shared/schema";
 
 interface TimesheetGridProps {
@@ -244,7 +245,7 @@ export default function TimesheetGrid({
                         </div>
                         <div className="text-xs text-gray-600">
                           {shiftCode.startTime && shiftCode.endTime 
-                            ? `${shiftCode.startTime}-${shiftCode.endTime}`
+                            ? `${stripSeconds(shiftCode.startTime)}-${stripSeconds(shiftCode.endTime)}`
                             : shiftCode.name}
                         </div>
                       </div>
@@ -333,12 +334,12 @@ export default function TimesheetGrid({
                             </div>
                             <div className="text-xs text-gray-600 font-medium">
                               {shiftCode.startTime && shiftCode.endTime 
-                                ? `${shiftCode.startTime}-${shiftCode.endTime}`
+                                ? `${stripSeconds(shiftCode.startTime)}-${stripSeconds(shiftCode.endTime)}`
                                 : shiftCode.name}
                             </div>
-                            {shift.hours && (
+                            {shiftCode.hours && (
                               <div className="text-xs text-gray-500">
-                                {shift.hours}h
+                                {shiftCode.hours}h
                               </div>
                             )}
                           </div>

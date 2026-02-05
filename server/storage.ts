@@ -73,11 +73,24 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  [x: string]: any;
   // User operations
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
+  // Add method to find user by Neon Auth ID
+async getUserByNeonAuthId(neonAuthId: string): Promise<User | undefined> {
+  const result = await this.db
+    .select()
+    .from(users)
+    .where(eq(users.neonAuthId, neonAuthId))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+
 
   async upsertUser(userData: UpsertUser): Promise<User> {
     // First check if user exists by email (since email is also unique)
@@ -356,6 +369,7 @@ export class DatabaseStorage implements IStorage {
     const createdShifts = await db.insert(shifts).values(newShifts).returning();
     return createdShifts;
   }
+  
 }
 
 export const storage = new DatabaseStorage();

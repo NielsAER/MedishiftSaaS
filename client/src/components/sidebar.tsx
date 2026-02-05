@@ -122,29 +122,16 @@ export default function Sidebar({
               Filters
             </h3>
             <div className="space-y-4">
-              {/* Facility Filter */}
+              {/* Facility Filter (read-only) */}
               <div>
                 <Label className="text-sm font-medium text-foreground block mb-2">
                   Facility
                 </Label>
-                <Select
-                  value={selectedFacility}
-                  onValueChange={onFacilityChange}
-                >
-                  <SelectTrigger
-                    className="w-full"
-                    data-testid="select-facility"
-                  >
-                    <SelectValue placeholder="Select facility" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {facilities.map((facility) => (
-                      <SelectItem key={facility.id} value={facility.id}>
-                        {facility.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="w-full text-sm sm:text-base text-foreground">
+                  {selectedFacility === "all"
+                    ? "All Facilities"
+                    : facilities.find((f) => f.id === selectedFacility)?.name || "No facility"}
+                </div>
               </div>
 
               {/* Team Filter */}

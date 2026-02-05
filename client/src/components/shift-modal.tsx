@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { stripSeconds } from "@/lib/timeUtils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { ShiftCode, Shift } from "@shared/schema";
@@ -40,8 +41,8 @@ export default function ShiftModal({
         userId: selectedCell.userId,
         shiftCodeId,
         date: selectedCell.date,
-        startTime: shiftCode?.startTime,
-        endTime: shiftCode?.endTime,
+        startTime: stripSeconds(shiftCode?.startTime) || undefined,
+        endTime: stripSeconds(shiftCode?.endTime) || undefined,
         hours: shiftCode?.hours,
       });
     },
@@ -80,8 +81,8 @@ export default function ShiftModal({
       
       return await apiRequest("PUT", `/api/shifts/${selectedCell.existingShift.id}`, {
         shiftCodeId,
-        startTime: shiftCode?.startTime,
-        endTime: shiftCode?.endTime,
+        startTime: stripSeconds(shiftCode?.startTime) || undefined,
+        endTime: stripSeconds(shiftCode?.endTime) || undefined,
         hours: shiftCode?.hours,
       });
     },
@@ -181,7 +182,7 @@ export default function ShiftModal({
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {code.startTime && code.endTime 
-                      ? `${code.startTime} - ${code.endTime} (${code.hours || 0} hours)`
+                      ? `${stripSeconds(code.startTime)} - ${stripSeconds(code.endTime)} (${code.hours || 0} hours)`
                       : code.description || code.category.replace('_', ' ')}
                   </div>
                 </div>

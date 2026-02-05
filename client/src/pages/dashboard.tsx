@@ -63,14 +63,14 @@ export default function Dashboard() {
     if (selectedFacility !== "all") {
       const teamIdsInFacility = allTeams.filter(t => t.facilityId === selectedFacility).map(t => t.id);
       const timesheetsInScope = timesheets?.filter(ts => teamIdsInFacility.includes(ts.teamId)) || [];
-      const userIdsInScope = new Set(timesheetsInScope.map(ts => ts.userId));
+      const userIdsInScope = new Set(timesheetsInScope.map(ts => ts.id));
       filtered = filtered.filter(u => userIdsInScope.has(u.id));
     }
     
     // Then filter by team
     if (selectedTeam !== "all") {
       const timesheetsInTeam = timesheets?.filter(ts => ts.teamId === selectedTeam) || [];
-      const userIdsInTeam = new Set(timesheetsInTeam.map(ts => ts.userId));
+      const userIdsInTeam = new Set(timesheetsInTeam.map(ts => ts.id));
       filtered = filtered.filter(u => userIdsInTeam.has(u.id));
     }
     
@@ -81,7 +81,7 @@ export default function Dashboard() {
     if (!timesheets || !allShifts) return [];
     
     let filtered = timesheets.filter(ts => {
-      const tsDate = new Date(ts.weekStarting);
+      const tsDate = new Date(ts.weekStartDate);
       return tsDate >= weekStart && tsDate <= weekEnd;
     });
 
@@ -92,7 +92,7 @@ export default function Dashboard() {
       filtered = filtered.filter(ts => ts.teamId === selectedTeam);
     }
     if (selectedEmployee !== "all") {
-      filtered = filtered.filter(ts => ts.userId === selectedEmployee);
+      filtered = filtered.filter(ts => ts.id === selectedEmployee);
     }
 
     return filtered;
@@ -118,11 +118,11 @@ export default function Dashboard() {
       return sum + (shift.hours || 0);
     }, 0);
 
-    const staffCount = new Set(filteredTimesheets.map(ts => ts.userId)).size;
+    const staffCount = new Set(filteredTimesheets.map(ts => ts.id)).size;
     
     // Calculate coverage rate (percentage of scheduled vs planned)
     const totalDays = filteredTimesheets.length * 7;
-    const scheduledDays = relevantShifts.filter(s => s.shiftCode).length;
+    const scheduledDays = relevantShifts.filter(s => s.shiftCodeId).length;
     const coverageRate = totalDays > 0 ? (scheduledDays / totalDays) * 100 : 0;
 
     return {
@@ -426,7 +426,7 @@ export default function Dashboard() {
                   </thead>
                   <tbody>
                     {filteredTimesheets.map(timesheet => {
-                      const employee = allUsers?.find(u => u.id === timesheet.userId);
+                      const employee = allUsers?.find(u => u.id === timesheet.id);
                       const team = allTeams?.find(t => t.id === timesheet.teamId);
                       const shifts = allShifts?.filter(s => s.timesheetId === timesheet.id) || [];
                       const totalHours = shifts.reduce((sum, s) => sum + (s.hours || 0), 0);
@@ -440,7 +440,7 @@ export default function Dashboard() {
                             {team?.name || 'N/A'}
                           </td>
                           <td className="py-3 px-4 text-sm">
-                            {format(new Date(timesheet.weekStarting), "MMM d, yyyy")}
+                            {format(new Date(timesheet.weekStartDate), "MMM d, yyyy")}
                           </td>
                           <td className="py-3 px-4 text-sm text-right font-medium">
                             {Math.round(totalHours * 10) / 10}h

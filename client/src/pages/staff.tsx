@@ -167,18 +167,12 @@ export default function Staff() {
           
           {/* Controls - Stack on mobile, row on desktop */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-            <Select value={selectedFacility} onValueChange={setSelectedFacility}>
-              <SelectTrigger className="w-full sm:w-64" data-testid="select-facility">
-                <SelectValue placeholder="Select facility" />
-              </SelectTrigger>
-              <SelectContent>
-                {facilities?.map((facility) => (
-                  <SelectItem key={facility.id} value={facility.id}>
-                    {facility.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-full sm:w-64">
+              <div className="text-sm font-medium text-foreground mb-1">Facility</div>
+              <div className="text-sm sm:text-base text-foreground">
+                {facilities?.find((f) => f.id === selectedFacility)?.name || "No facility"}
+              </div>
+            </div>
 
             <Select value={selectedTeam} onValueChange={setSelectedTeam}>
               <SelectTrigger className="w-full sm:w-64" data-testid="select-team">

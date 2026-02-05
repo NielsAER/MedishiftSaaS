@@ -1,29 +1,24 @@
-import * as client from "openid-client";
-import { Strategy, type VerifyFunction } from "openid-client/passport";
-
-import passport from "passport";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
-import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+import cookieParser from 'cookie-parser';
+import crypto from 'node:crypto';
 import { storage } from "./storage";
 
-// Check if running in local development mode (not on Replit)
-const isLocalDev = process.env.NODE_ENV === 'development' && !process.env.REPL_ID;
-
-if (!isLocalDev && !process.env.REPLIT_DOMAINS) {
-  throw new Error("Environment variable REPLIT_DOMAINS not provided");
+declare module "express-session" {
+  interface SessionData {
+    oauthState?: string;
+    user?: {
+      claims?: any;
+      access_token?: string;
+      refresh_token?: string;
+      expires_at?: number;
+    };
+  }
 }
 
-const getOidcConfig = memoize(
-  async () => {
-    return await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
-    );
-  },
-  { maxAge: 3600 * 1000 }
-);
+// Check if running in local development mode (not on Replit)
+const isLocalDev = process.env.NODE_ENV === 'development' && !process.env.NEON_AUTH_URL;
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -41,33 +36,23 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: !isLocalDev, // Allow non-HTTPS in local dev
+      secure: !isLocalDev,
       maxAge: sessionTtl,
+      sameSite: 'lax',
     },
   });
 }
 
-function updateUserSession(
-  user: any,
-  tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
-) {
-  user.claims = tokens.claims();
-  user.access_token = tokens.access_token;
-  user.refresh_token = tokens.refresh_token;
-  user.expires_at = user.claims?.exp;
-}
-
-async function upsertUser(
-  claims: any,
-) {
+async function upsertUser(claims: any) {
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
-    role: claims["role"],
-    facilityId: claims["facilityId"],
+    role: claims["role"] || "staff", // Default to staff if no role
+    facilityId: claims["facilityId"] || null,
+    neonAuthId: claims["sub"],
   });
 }
 
@@ -79,12 +64,13 @@ async function createMockUser() {
     firstName: "Dev",
     lastName: "User",
     profileImageUrl: null,
-    role: "admin" as const, // Admin role for unrestricted access
-    facilityId: null, // Admin doesn't need a facility
+    role: "admin" as const,
+    facilityId: null,
+    neonAuthId: "local-dev-neon-id",
   };
   
-  // Upsert mock user into database
   await storage.upsertUser(mockUser);
+  
   try {
     const facilities = await storage.getFacilities();
     if (facilities.length === 0) {
@@ -95,7 +81,8 @@ async function createMockUser() {
       });
       console.log('✓ Created test facility for local dev');
     }
-     const teams = await storage.getTeamsByFacility(facilities[0].id);
+    
+    const teams = await storage.getTeamsByFacility(facilities[0].id);
     if (teams.length === 0) {
       await storage.createTeam({
         name: "Nursing Team",
@@ -104,211 +91,329 @@ async function createMockUser() {
       });
       console.log('✓ Created test team for local dev');
     }
-    
-    // Check if we have any timesheets
-    const timesheets = await storage.getTimesheetsByFacility(facilities[0].id);
-    
-    if (timesheets.length === 0) {
-      // Create a timesheet for this week
-      const today = new Date();
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
-      
-      const newTimesheet = await storage.createTimesheet({
-        createdById: mockUser.id,
-        teamId: teams[0].id,
-        facilityId: facilities[0].id,
-        weekStartDate: weekStart.toISOString(),
-      });
-      
-      console.log('✓ Created test timesheet');
-      
-      // Create some test shifts
-      const shiftCodes = await storage.getShiftCodesByFacility(facilities[0].id);
-      
-      // if (shiftCodes.length > 0) {
-      //   const morningShift = shiftCodes[0];
-        
-      //   // Add shifts for Monday to Friday
-      //   for (let i = 0; i < 5; i++) {
-      //     const shiftDate = new Date(weekStart);
-      //     shiftDate.setDate(weekStart.getDate() + i);
-          
-      //     await storage.createShift({
-      //       timesheetId: newTimesheet.id,
-      //       date: shiftDate.toISOString(),
-      //       shiftCode: morningShift.code,
-      //       hours: morningShift.hours || 8,
-      //     });
-      //   }
-        
-      //   console.log('✓ Created test shifts (Mon-Fri)');
-      // }
-    }
   } catch (error) {
     console.log('Note: Could not auto-create facility');
   }
+  
   return mockUser;
 }
 
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
-  app.use(passport.initialize());
-  app.use(passport.session());
+  app.use(cookieParser());
 
   // LOCAL DEVELOPMENT MODE
   if (isLocalDev) {
     console.log('⚠️  Running in LOCAL DEV mode - Mock authentication enabled');
     
-    // Create mock admin user in database
     await createMockUser();
-    
-    // Simple mock authentication
-    passport.serializeUser((user: Express.User, cb) => cb(null, user));
-    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-    // Mock login endpoint
-    app.get("/api/login", async (req, res) => {
-      const mockUser = await createMockUser();
-      req.login({ 
-        claims: { 
-          sub: mockUser.id,
-          role: "admin", // Include admin role in claims
-          email: mockUser.email,
-          first_name: mockUser.firstName,
-          last_name: mockUser.lastName,
+    app.get("/api/auth/session", (req, res) => {
+      const suser = (req.session as any)?.user;
+      if (suser?.claims) {
+        return res.json({
+          user: {
+            id: suser.claims.sub,
+            email: suser.claims.email,
+            name: `${suser.claims.first_name} ${suser.claims.last_name}`,
+            role: suser.claims.role,
+          }
+        });
+      }
+      res.json({ user: null });
+    });
+
+    app.post("/api/login", (req, res) => {
+      // In local dev, just create session without checking credentials
+      (req.session as any).user = {
+        claims: {
+          sub: "local-dev-user",
+          email: "dev@localhost.com",
+          first_name: "Dev",
+          last_name: "User",
+          role: "admin",
         },
         access_token: "mock-token",
-        expires_at: Math.floor(Date.now() / 1000) + 36000 // 10 hours
-      }, (err) => {
-        if (err) return res.status(500).json({ message: "Login failed" });
-        res.redirect("/");
-      });
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+      };
+      res.json({ success: true, redirectUrl: "/" });
     });
 
-    // Mock logout endpoint
-    app.get("/api/logout", (req, res) => {
-      req.logout(() => {
-        res.redirect("/");
-      });
+    app.post("/api/register", async (req, res) => {
+      // In local dev, ignore registration and use mock user
+      (req.session as any).user = {
+        claims: {
+          sub: "local-dev-user",
+          email: "dev@localhost.com",
+          first_name: "Dev",
+          last_name: "User",
+          role: "admin",
+        },
+        access_token: "mock-token",
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+      };
+      res.json({ success: true, redirectUrl: "/" });
     });
 
-    // Mock callback endpoint
-    app.get("/api/callback", (req, res) => {
-      res.redirect("/");
+    app.post("/api/auth/signout", (req, res) => {
+      req.session!.destroy(() => {});
+      res.json({ success: true });
     });
 
-    console.log('✓ Mock authentication routes configured (Admin user)');
-    return;
+    console.log('✓ Mock authentication routes configured');
+    return; // Exit early - don't register production routes
   }
 
-  // REPLIT PRODUCTION MODE
-  const config = await getOidcConfig();
+  // PRODUCTION: Neon Auth endpoints
+  const NEON_URL = process.env.NEON_AUTH_URL;
+  const CLIENT_ID = process.env.NEON_CLIENT_ID;
+  const CLIENT_SECRET = process.env.NEON_CLIENT_SECRET;
+  const REDIRECT_URI = process.env.NEON_REDIRECT_URI ?? process.env.AUTH_REDIRECT_URI;
 
-  const verify: VerifyFunction = async (
-    tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
-    verified: passport.AuthenticateCallback
-  ) => {
-    const user = {};
-    updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
-    verified(null, user);
-  };
-
-  for (const domain of process.env
-    .REPLIT_DOMAINS!.split(",")) {
-    const strategy = new Strategy(
-      {
-        name: `replitauth:${domain}`,
-        config,
-        scope: "openid email profile offline_access",
-        callbackURL: `https://${domain}/api/callback`,
-      },
-      verify,
-    );
-    passport.use(strategy);
+  if (!NEON_URL || !CLIENT_ID || !CLIENT_SECRET) {
+    console.warn('⚠️  Neon auth environment variables missing - auth will be limited in production');
   }
 
-  passport.serializeUser((user: Express.User, cb) => cb(null, user));
-  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+  // Registration endpoint
+  app.post('/api/register', async (req, res) => {
+    const { email, password, firstName, lastName } = req.body;
 
-  app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      prompt: "login consent",
-      scope: ["openid", "email", "profile", "offline_access"],
-    })(req, res, next);
+    if (!email || !password || !firstName || !lastName) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Check if we have Neon Auth configured
+    if (!NEON_URL || !CLIENT_ID || !CLIENT_SECRET) {
+      return res.status(503).json({ 
+        message: 'Registration is not configured. Please contact your administrator.' 
+      });
+    }
+
+    try {
+      // Call Neon Auth signup endpoint
+      const signupResp = await fetch(`${NEON_URL}/signup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+        }),
+      });
+
+      if (!signupResp.ok) {
+        const error = await signupResp.json();
+        return res.status(signupResp.status).json({ 
+          message: error.message || 'Registration failed' 
+        });
+      }
+
+      const data = await signupResp.json();
+
+      // If Neon Auth returns tokens immediately, set up session
+      if (data.access_token) {
+        const expiresAt = Math.floor(Date.now() / 1000) + (data.expires_in || 3600);
+        
+        // Get user info
+        const userinfoResp = await fetch(`${NEON_URL}/userinfo`, {
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        });
+        const claims = await userinfoResp.json();
+
+        // Create user in our database
+        await upsertUser(claims);
+
+        req.session!.user = {
+          claims,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: expiresAt,
+        };
+
+        return res.json({ success: true, redirectUrl: '/' });
+      }
+
+      // If email verification is required
+      res.json({ 
+        success: true, 
+        message: 'Registration successful. Please check your email to verify your account.',
+        requiresVerification: true 
+      });
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(500).json({ message: 'Registration failed' });
+    }
   });
 
-  app.get("/api/callback", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
-    })(req, res, next);
+  // Login endpoint
+  app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Check if we have Neon Auth configured
+    if (!NEON_URL || !CLIENT_ID || !CLIENT_SECRET) {
+      return res.status(503).json({ 
+        message: 'Login is not configured. Please contact your administrator.' 
+      });
+    }
+
+    try {
+      // Exchange credentials for tokens via Neon Auth
+      const tokenResp = await fetch(`${NEON_URL}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'password',
+          username: email,
+          password: password,
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+        }),
+      });
+
+      if (!tokenResp.ok) {
+        const error = await tokenResp.json();
+        return res.status(401).json({ 
+          message: error.error_description || 'Invalid credentials' 
+        });
+      }
+
+      const tokens = await tokenResp.json();
+
+      if (!tokens.access_token) {
+        return res.status(401).json({ message: 'Authentication failed' });
+      }
+
+      // Fetch userinfo
+      const userinfoResp = await fetch(`${NEON_URL}/userinfo`, {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+      const claims = await userinfoResp.json();
+
+      // Upsert DB user
+      await upsertUser(claims);
+
+      // Save session
+      const expiresAt = Math.floor(Date.now() / 1000) + (tokens.expires_in || 3600);
+      req.session!.user = {
+        claims,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: expiresAt,
+      };
+
+      res.json({ success: true, redirectUrl: '/' });
+
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ message: 'Authentication failed' });
+    }
   });
 
-  app.get("/api/logout", (req, res) => {
-    req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+  app.get('/api/logout', (req, res) => {
+    req.session!.destroy(() => {});
+    res.clearCookie('__Secure-neonauth.session_token');
+    
+    const endSessionUrl = process.env.NEON_ENDSESSION_URL;
+    if (endSessionUrl) {
+      const params = new URLSearchParams({ 
+        post_logout_redirect_uri: (req.protocol + '://' + req.get('host')) 
+      });
+      return res.redirect(`${endSessionUrl}?${params.toString()}`);
+    }
+    res.redirect('/');
+  });
+
+  app.get('/api/auth/session', async (req, res) => {
+    const suser = (req.session as any)?.user;
+    if (!suser || !suser.claims) return res.json({ user: null });
+    
+    return res.json({ 
+      user: { 
+        id: suser.claims.sub, 
+        email: suser.claims.email, 
+        role: suser.claims.role || 'staff',
+        name: `${suser.claims.first_name || ''} ${suser.claims.last_name || ''}`.trim()
+      } 
     });
   });
+
+  app.post('/api/auth/signout', (req, res) => {
+    req.session!.destroy(() => {});
+    res.clearCookie('__Secure-neonauth.session_token');
+    res.json({ success: true });
+  });
+
+  console.log('✓ Neon Auth routes configured');
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   // In local dev mode, always allow access with admin privileges
   if (isLocalDev) {
-    if (!req.user) {
-      // Auto-login for local dev with admin user
+    if (!(req.session as any)?.user) {
       const mockUser = await createMockUser();
-      req.login({ 
-        claims: { 
+      (req.session as any).user = {
+        claims: {
           sub: mockUser.id,
-          role: "admin",
           email: mockUser.email,
+          role: mockUser.role,
           first_name: mockUser.firstName,
           last_name: mockUser.lastName,
         },
-        access_token: "mock-token",
-        expires_at: Math.floor(Date.now() / 1000) + 36000 // 10 hours
-      }, (err) => {
-        if (err) return res.status(401).json({ message: "Unauthorized" });
-        return next();
-      });
-      return;
+        access_token: 'mock-token',
+        refresh_token: null,
+        expires_at: Math.floor(Date.now() / 1000) + 36000,
+      };
     }
     return next();
   }
 
-  // Normal Replit authentication flow
-  const user = req.user as any;
-
-  if (!req.isAuthenticated() || !user.expires_at) {
-    return res.status(401).json({ message: "Unauthorized" });
+  // Production Neon session check
+  const suser = (req.session as any)?.user;
+  if (!suser || !suser.expires_at) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 
   const now = Math.floor(Date.now() / 1000);
-  if (now <= user.expires_at) {
-    return next();
-  }
+  if (now <= suser.expires_at) return next();
 
-  const refreshToken = user.refresh_token;
-  if (!refreshToken) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
+  // Attempt refresh using Neon token endpoint
+  const NEON_URL = process.env.NEON_AUTH_URL;
+  const CLIENT_ID = process.env.NEON_CLIENT_ID;
+  const CLIENT_SECRET = process.env.NEON_CLIENT_SECRET;
+
+  const refreshToken = suser.refresh_token;
+  if (!refreshToken || !NEON_URL || !CLIENT_ID || !CLIENT_SECRET) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 
   try {
-    const config = await getOidcConfig();
-    const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
-    updateUserSession(user, tokenResponse);
+    const tokenResp = await fetch(`${NEON_URL}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+      }),
+    });
+    const tokens = await tokenResp.json();
+    if (!tokens.access_token) return res.status(401).json({ message: 'Unauthorized' });
+
+    suser.access_token = tokens.access_token;
+    suser.refresh_token = tokens.refresh_token ?? suser.refresh_token;
+    suser.expires_at = Math.floor(Date.now() / 1000) + (tokens.expires_in || 3600);
+    req.session!.user = suser;
     return next();
   } catch (error) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
+    console.error('Refresh token failed', error);
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 };

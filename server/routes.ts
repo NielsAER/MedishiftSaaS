@@ -1,8 +1,17 @@
-import type { Express } from "express";
+import type { Express, RequestHandler, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { loadUser, authorize, type AuthenticatedRequest } from "./middleware/auth";
+
+/** Wraps a handler that uses AuthenticatedRequest so Express typings accept it (they expect void, not Promise<Response>). */
+function h(handler: (req: AuthenticatedRequest, res: Response) => any): RequestHandler {
+  return handler as RequestHandler;
+}
+/** Casts authorize() to RequestHandler for Express overload resolution. */
+function authRole(roles: ('admin' | 'manager' | 'staff')[]) {
+  return authorize(roles) as RequestHandler;
+}
 import { 
   insertFacilitySchema,
   insertTeamSchema,
@@ -18,10 +27,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
   
   // Load user middleware for all authenticated routes
-  app.use('/api', isAuthenticated, loadUser);
+  app.use('/api', isAuthenticated, loadUser as any);
 
   // Auth routes
-  app.get('/api/auth/user', async (req: AuthenticatedRequest, res) => {
+  app.get('/api/auth/user', h(async (req: AuthenticatedRequest, res) => {
     try {
       // This route now uses the loaded DB user from loadUser middleware
       if (!req.user) {
@@ -32,10 +41,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
-  });
+  }));
 
   // Facility routes
-  app.get("/api/facilities", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/facilities", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -49,7 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!req.user.facilityId) {
           return res.json([]);
         }
-        facilities = facilities.filter(f => f.id === req.user.facilityId);
+        facilities = facilities.filter(f => f.id === req.user!.facilityId);
       }
       
       res.json(facilities);
@@ -57,9 +66,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching facilities:", error);
       res.status(500).json({ message: "Failed to fetch facilities" });
     }
-  });
+  }));
 
-  app.post("/api/facilities", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/facilities", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
     try {
       const facilityData = insertFacilitySchema.parse(req.body);
       const facility = await storage.createFacility(facilityData);
@@ -68,10 +77,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating facility:", error);
       res.status(400).json({ message: "Failed to create facility" });
     }
-  });
+  }));
 
   // Team routes
-  app.get("/api/teams/:facilityId", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/teams/:facilityId", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -95,9 +104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching teams:", error);
       res.status(500).json({ message: "Failed to fetch teams" });
     }
-  });
+  }));
 
-  app.get("/api/all-teams", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/all-teams", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -111,7 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!req.user.facilityId) {
           return res.json([]);
         }
-        teams = teams.filter(t => t.facilityId === req.user.facilityId);
+        teams = teams.filter(t => t.facilityId === req.user!.facilityId);
       }
       
       res.json(teams);
@@ -119,9 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching teams:", error);
       res.status(500).json({ message: "Failed to fetch teams" });
     }
-  });
+  }));
 
-  app.post("/api/teams", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/teams", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
     try {
       const teamData = insertTeamSchema.parse(req.body);
       const team = await storage.createTeam(teamData);
@@ -130,10 +139,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating team:", error);
       res.status(400).json({ message: "Failed to create team" });
     }
-  });
+  }));
 
   // Shift code routes
-  app.get("/api/shift-codes/:facilityId", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/shift-codes/:facilityId", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -157,9 +166,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching shift codes:", error);
       res.status(500).json({ message: "Failed to fetch shift codes" });
     }
-  });
+  }));
 
-  app.post("/api/shift-codes", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/shift-codes", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
     try {
       // Convert empty strings to null for time fields
       const body = { ...req.body };
@@ -173,10 +182,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating shift code:", error);
       res.status(400).json({ message: "Failed to create shift code" });
     }
-  });
+  }));
+
+  app.patch("/api/shift-codes/:id", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+
+      // Convert empty strings to null for time fields
+      const body = { ...req.body };
+      if (body.startTime === '' || body.startTime === '--:-- --') body.startTime = null;
+      if (body.endTime === '' || body.endTime === '--:-- --') body.endTime = null;
+
+      const shiftCodeData = insertShiftCodeSchema.partial().parse(body);
+      const updated = await storage.updateShiftCode(id, shiftCodeData as any);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating shift code:", error);
+      res.status(400).json({ message: "Failed to update shift code" });
+    }
+  }));
 
   // Timesheet routes
-  app.get("/api/timesheets", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/timesheets", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -200,9 +227,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching timesheets:", error);
       res.status(500).json({ message: "Failed to fetch timesheets" });
     }
-  });
+  }));
 
-  app.get("/api/timesheets/:weekStartDate/:teamId", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/timesheets/:weekStartDate/:teamId", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -231,9 +258,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching timesheet:", error);
       res.status(500).json({ message: "Failed to fetch timesheet" });
     }
-  });
+  }));
 
-  app.post("/api/timesheets", async (req: AuthenticatedRequest, res) => {
+  app.post("/api/timesheets", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -268,9 +295,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating timesheet:", error);
       res.status(400).json({ message: "Failed to create timesheet" });
     }
-  });
+  }));
 
-  app.get("/api/timesheets/facility/:facilityId", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/timesheets/facility/:facilityId", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -294,10 +321,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching timesheets:", error);
       res.status(500).json({ message: "Failed to fetch timesheets" });
     }
-  });
+  }));
 
   // Shift routes
-  app.get("/api/shifts/:timesheetId", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/shifts/:timesheetId", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -331,9 +358,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching shifts:", error);
       res.status(500).json({ message: "Failed to fetch shifts" });
     }
-  });
+  }));
 
-  app.get("/api/shifts", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/shifts", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -360,9 +387,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching shifts:", error);
       res.status(500).json({ message: "Failed to fetch shifts" });
     }
-  });
+  }));
 
-  app.post("/api/shifts", async (req: AuthenticatedRequest, res) => {
+  app.post("/api/shifts", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -396,9 +423,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating shift:", error);
       res.status(400).json({ message: "Failed to create shift" });
     }
-  });
+  }));
 
-  app.put("/api/shifts/:id", async (req: AuthenticatedRequest, res) => {
+  app.put("/api/shifts/:id", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -438,9 +465,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating shift:", error);
       res.status(400).json({ message: "Failed to update shift" });
     }
-  });
+  }));
 
-  app.delete("/api/shifts/:id", async (req: AuthenticatedRequest, res) => {
+  app.delete("/api/shifts/:id", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -479,10 +506,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error deleting shift:", error);
       res.status(400).json({ message: "Failed to delete shift" });
     }
-  });
+  }));
 
   // Staff routes
-  app.get("/api/staff/:teamId", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/staff/:teamId", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -511,10 +538,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching staff:", error);
       res.status(500).json({ message: "Failed to fetch staff" });
     }
-  });
+  }));
 
   // User management routes
-  app.get("/api/users", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/users", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -531,19 +558,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // For non-admins, filter to only users in same facility
         const facilities = await storage.getFacilities();
-        const userFacility = facilities.find(f => f.id === req.user.facilityId);
+        const userFacility = facilities.find(f => f.id === req.user!.facilityId);
         
         if (userFacility) {
           // Get teams in user's facility
           const teams = await storage.getTeamsByFacility(userFacility.id);
           const teamIds = teams.map(t => t.id);
           
-          // Get timesheets for those teams to find which users work there
+          // Get timesheets for those teams to find which users work there (user IDs come from shifts)
           const allTimesheets = await storage.getAllTimesheets();
           const relevantTimesheets = allTimesheets.filter(ts => teamIds.includes(ts.teamId));
-          const userIds = new Set(relevantTimesheets.map(ts => ts.userId));
-          
-          users = users.filter(u => userIds.has(u.id) || u.id === req.user.id);
+          const userIds = new Set<string>();
+          for (const ts of relevantTimesheets) {
+            const shifts = await storage.getShiftsByTimesheet(ts.id);
+            shifts.forEach(s => userIds.add(s.userId));
+          }
+          users = users.filter(u => userIds.has(u.id) || u.id === req.user!.id);
         }
       }
       
@@ -552,9 +582,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
     }
-  });
+  }));
 
-  app.get("/api/users/facility/:facilityId", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.get("/api/users/facility/:facilityId", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
     try {
       const { facilityId } = req.params;
       const users = await storage.getUsersByFacility(facilityId);
@@ -563,9 +593,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
     }
-  });
+  }));
 
-  app.post("/api/users", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/users", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.upsertUser({ ...userData, id: undefined });
@@ -574,9 +604,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating user:", error);
       res.status(400).json({ message: "Failed to create user" });
     }
-  });
+  }));
 
-  app.put("/api/users/:id", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.put("/api/users/:id", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
       const userData = insertUserSchema.partial().parse(req.body);
@@ -586,9 +616,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating user:", error);
       res.status(400).json({ message: "Failed to update user" });
     }
-  });
+  }));
 
-  app.delete("/api/users/:id", authorize(['admin']), async (req: AuthenticatedRequest, res) => {
+  app.delete("/api/users/:id", authRole(['admin']), h(async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
       await storage.deleteUser(id);
@@ -597,10 +627,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error deleting user:", error);
       res.status(400).json({ message: "Failed to delete user" });
     }
-  });
+  }));
 
   // Stats routes
-  app.get("/api/stats/:timesheetId", async (req: AuthenticatedRequest, res) => {
+  app.get("/api/stats/:timesheetId", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -634,10 +664,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching stats:", error);
       res.status(500).json({ message: "Failed to fetch stats" });
     }
-  });
+  }));
 
   // Bulk operations
-  app.post("/api/timesheets/copy-week", async (req: AuthenticatedRequest, res) => {
+  app.post("/api/timesheets/copy-week", h(async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -702,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error copying week:", error);
       res.status(500).json({ message: "Failed to copy week" });
     }
-  });
+  }));
 
   const httpServer = createServer(app);
   return httpServer;

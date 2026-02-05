@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertShiftCodeSchema, type Facility, type ShiftCode } from "@shared/schema";
 import { z } from "zod";
+import { stripSeconds } from "@/lib/timeUtils";
 
 const shiftCodeFormSchema = insertShiftCodeSchema.extend({
   startTime: z.string().optional(),
@@ -127,6 +128,84 @@ export default function Codes() {
     },
   });
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingShiftCode, setEditingShiftCode] = useState<ShiftCode | null>(null);
+
+  const editForm = useForm<z.infer<typeof shiftCodeFormSchema>>({
+    resolver: zodResolver(shiftCodeFormSchema),
+    defaultValues: {
+      code: "",
+      name: "",
+      description: "",
+      category: "shift",
+      startTime: "",
+      endTime: "",
+      hours: 8,
+      color: "#FEF3C7",
+      borderColor: "#F59E0B",
+      facilityId: selectedFacility,
+    },
+  });
+
+  const updateShiftCodeMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: z.infer<typeof shiftCodeFormSchema> }) => {
+      return await apiRequest("PATCH", `/api/shift-codes/${id}`, {
+        ...data,
+        facilityId: selectedFacility,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shift-codes", selectedFacility] });
+      toast({
+        title: "Success",
+        description: "Shift code updated successfully",
+      });
+      setEditDialogOpen(false);
+      setEditingShiftCode(null);
+      editForm.reset();
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update shift code",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditClick = (shiftCode: ShiftCode) => {
+    setEditingShiftCode(shiftCode);
+    editForm.reset({
+      code: shiftCode.code,
+      name: shiftCode.name,
+      description: shiftCode.description || "",
+      category: shiftCode.category,
+      startTime: shiftCode.startTime || "",
+      endTime: shiftCode.endTime || "",
+      hours: shiftCode.hours || 8,
+      color: shiftCode.color,
+      borderColor: shiftCode.borderColor,
+      facilityId: shiftCode.facilityId,
+    });
+    setEditDialogOpen(true);
+  };
+
+  const onEditSubmit = (data: z.infer<typeof shiftCodeFormSchema>) => {
+    if (!editingShiftCode) return;
+    updateShiftCodeMutation.mutate({ id: editingShiftCode.id, data });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -177,18 +256,12 @@ export default function Codes() {
           
           {/* Controls - Stack on mobile, row on desktop */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-            <Select value={selectedFacility} onValueChange={setSelectedFacility}>
-              <SelectTrigger className="w-full sm:w-64" data-testid="select-facility">
-                <SelectValue placeholder="Select facility" />
-              </SelectTrigger>
-              <SelectContent>
-                {facilities?.map((facility) => (
-                  <SelectItem key={facility.id} value={facility.id}>
-                    {facility.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-full sm:w-64">
+              <div className="text-sm font-medium text-foreground mb-1">Facility</div>
+              <div className="text-sm sm:text-base text-foreground">
+                {facilities?.find((f) => f.id === selectedFacility)?.name || "No facility"}
+              </div>
+            </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
@@ -352,6 +425,164 @@ export default function Codes() {
                 </Form>
               </DialogContent>
             </Dialog>
+          
+            {/* Edit Dialog */}
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+              <DialogContent className="w-[95vw] max-w-[425px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-lg sm:text-xl">Edit Shift Code</DialogTitle>
+                </DialogHeader>
+                <Form {...editForm}>
+                  <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-3 sm:space-y-4">
+                    <FormField
+                      control={editForm.control}
+                      name="code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">Code</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="e.g., M22, N11" 
+                              {...field} 
+                              data-testid="input-edit-code"
+                              className="text-sm sm:text-base"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">Name</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="e.g., Morning Shift" 
+                              {...field} 
+                              data-testid="input-edit-name"
+                              className="text-sm sm:text-base"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">Category</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-edit-category" className="text-sm sm:text-base">
+                                <SelectValue placeholder="Select category" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="shift">Shift</SelectItem>
+                              <SelectItem value="vacation">Vacation</SelectItem>
+                              <SelectItem value="training">Training</SelectItem>
+                              <SelectItem value="sick_leave">Sick Leave</SelectItem>
+                              <SelectItem value="special_duty">Special Duty</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <FormField
+                        control={editForm.control}
+                        name="startTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm">Start Time</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="time" 
+                                {...field} 
+                                data-testid="input-edit-start-time"
+                                className="text-sm sm:text-base"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={editForm.control}
+                        name="endTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm">End Time</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="time" 
+                                {...field} 
+                                data-testid="input-edit-end-time"
+                                className="text-sm sm:text-base"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={editForm.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">Description</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="Optional description" 
+                              {...field}
+                              value={field.value || ""}
+                              data-testid="textarea-edit-description"
+                              className="text-sm sm:text-base min-h-[80px]"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:space-x-2 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setEditDialogOpen(false);
+                          setEditingShiftCode(null);
+                        }}
+                        data-testid="button-edit-cancel"
+                        className="w-full sm:w-auto"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        disabled={updateShiftCodeMutation.isPending}
+                        data-testid="button-update"
+                        className="w-full sm:w-auto"
+                      >
+                        {updateShiftCodeMutation.isPending ? "Updating..." : "Update"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -371,9 +602,19 @@ export default function Codes() {
                     ></div>
                     <CardTitle className="text-base sm:text-lg truncate">{shiftCode.code}</CardTitle>
                   </div>
-                  <span className={`px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-full whitespace-nowrap ml-2 ${getCategoryColor(shiftCode.category)}`}>
-                    {shiftCode.category.replace('_', ' ')}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-full whitespace-nowrap ${getCategoryColor(shiftCode.category)}`}>
+                      {shiftCode.category.replace('_', ' ')}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => handleEditClick(shiftCode)}
+                      data-testid={`button-edit-${shiftCode.id}`}
+                      className="h-8 w-8 p-0 text-white"
+                    >
+                      <i className="fas fa-edit text-sm"></i>
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -385,7 +626,7 @@ export default function Codes() {
                   <div className="text-xs sm:text-sm text-muted-foreground flex items-center">
                     <i className="fas fa-clock mr-1 flex-shrink-0"></i>
                     <span className="truncate">
-                      {shiftCode.startTime} - {shiftCode.endTime}
+                      {stripSeconds(shiftCode.startTime)} - {stripSeconds(shiftCode.endTime)}
                       {shiftCode.hours && ` (${shiftCode.hours}h)`}
                     </span>
                   </div>
