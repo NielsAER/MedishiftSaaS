@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { storage } from '../storage';
-import type { User } from '@shared/schema';
+import type { User } from '@shared/types/schema';
 
 export interface AuthenticatedRequest extends Request {
   user?: User;  // DB user only, never claims

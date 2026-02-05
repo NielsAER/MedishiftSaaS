@@ -8,7 +8,7 @@ import { format, addDays, eachDayOfInterval, endOfWeek } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ShiftModal from "@/components/shift-modal";
 import { stripSeconds } from "@/lib/timeUtils";
-import type { User, ShiftCode, Timesheet, Shift } from "@shared/schema";
+import type { User, ShiftCode, Timesheet, Shift } from "@shared/types/schema";
 
 interface TimesheetGridProps {
   timesheet?: Timesheet;

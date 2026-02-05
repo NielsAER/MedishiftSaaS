@@ -6,7 +6,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { Facility, Team, User } from "@shared/schema";
+import type { Facility, Team, User } from "@shared/types/schema";
 
 export default function Home() {
   const { user, isLoading } = useAuth();

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { insertShiftCodeSchema, type Facility, type ShiftCode } from "@shared/schema";
+import { insertShiftCodeSchema, type Facility, type ShiftCode } from "@shared/types/schema";
 import { z } from "zod";
 import { stripSeconds } from "@/lib/timeUtils";
 

@@ -17,7 +17,7 @@ import {
   type InsertShiftCode,
   type InsertTimesheet,
   type InsertShift,
-} from "@shared/schema";
+} from "./db/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 

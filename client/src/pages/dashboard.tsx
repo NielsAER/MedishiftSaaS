@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Calendar, Users, Clock, TrendingUp, Download } from "lucide-react";
-import type { Facility, Team, User, Timesheet, Shift } from "@shared/schema";
+import type { Facility, Team, User, Timesheet, Shift } from "@shared/types/schema";
 import { startOfWeek, endOfWeek, format, addWeeks, subWeeks } from "date-fns";
 
 export default function Dashboard() {

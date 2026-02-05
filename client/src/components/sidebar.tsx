@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation } from "wouter";
 import { format, startOfISOWeek, parseISO } from "date-fns";
-import type { User, Facility, Team } from "@shared/schema";
+import type { User, Facility, Team } from "@shared/types/schema";
 
 interface SidebarProps {
   collapsed: boolean;

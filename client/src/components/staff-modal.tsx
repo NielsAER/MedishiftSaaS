@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useState, useEffect } from "react";
-import type { User, Facility } from "@shared/schema";
+import type { User, Facility } from "@shared/types/schema";
 
 interface StaffModalProps {
   isOpen: boolean;

@@ -5,7 +5,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { stripSeconds } from "@/lib/timeUtils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import type { ShiftCode, Shift } from "@shared/schema";
+import type { ShiftCode, Shift } from "@shared/types/schema";
 
 interface ShiftModalProps {
   isOpen: boolean;

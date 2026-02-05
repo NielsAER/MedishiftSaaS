@@ -13,7 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { stripSeconds } from "@/lib/timeUtils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import type { Facility, Team, Timesheet, User, Shift, ShiftCode } from "@shared/schema";
+import type { Facility, Team, Timesheet, User, Shift, ShiftCode } from "@shared/types/schema";
 
 export default function Timesheets() {
   const { user, isLoading } = useAuth();

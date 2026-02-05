@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import StaffModal from "@/components/staff-modal";
-import type { Facility, Team, User } from "@shared/schema";
+import type { Facility, Team, User } from "@shared/types/schema";
 
 export default function Staff() {
   const { user, isLoading } = useAuth();

@@ -19,7 +19,7 @@ import {
   insertTimesheetSchema,
   insertShiftSchema,
   insertUserSchema,
-} from "@shared/schema";
+} from "@shared/types/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
